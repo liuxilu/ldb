@@ -1,4 +1,5 @@
-require("override-lib/library").block(MemoryBlock, {
+global.override.block(MemoryBlock, {
+	ldbInWindow :true,
 	ldbSlideVal : 4,
 	ldbRangeStr : "0-511",
 	ldbRangeArr : [],
@@ -8,7 +9,7 @@ require("override-lib/library").block(MemoryBlock, {
 
 	ldbShowCell(index) {
 		return (this.ldbRangeArr.indexOf(index) != -1) ||
-			(this.ldbFilterIn(parseInt(index), this.memory)());
+			(this.ldbFilterIn(parseInt(index), this.memory));
 	},
 	ldbFilterIn : null,
 
@@ -19,9 +20,10 @@ require("override-lib/library").block(MemoryBlock, {
 			table = that.ldbSetTable(table);
 			pane.setWidget(table);
 			if (upSize) {
-				paneCell.minWidth(Math.max(that.ldbMinWidth, that.ldbColMul * that.ldbSlideVal));
+				paneCell.minWidth(getWidth(that));
 			}
-		}
+		};
+		const getWidth = that => Math.max(that.ldbMinWidth, that.ldbColMul * that.ldbSlideVal);
 		const setWidth = function(that) {
 			if (that.ldbEditMem) {
 				that.ldbMinWidth = 400;
@@ -30,24 +32,32 @@ require("override-lib/library").block(MemoryBlock, {
 				that.ldbMinWidth = 400;
 				that.ldbColMul = 200;
 			}
-		}
+		};
 		setWidth(this);
 		const height = 500;
 		const minWidth = this.ldbMinWidth;
 		if (this.ldbFilterIn === null) {
-			this.ldbFilterIn = () => () => false;
+			this.ldbFilterIn = () => false;
 		}
 		this.ldbParseRange(this.ldbRangeStr);
 
 		table.background(Styles.black6);
 
-		const c = table.check("", v => {
-			this.ldbEditMem = v;
-			setWidth(this);
-			updatePane(true, this);
-		}).size(40).right().pad(10);
-		c.get().setChecked(this.ldbEditMem);
-		global.ldbTipNo("edit", c);
+		global.ldbTipNo("edit",
+			table.check("", v => {
+				this.ldbEditMem = v;
+				setWidth(this);
+				updatePane(true, this);
+			}).size(40).right().pad(10)
+		).get().setChecked(this.ldbEditMem);
+
+		global.ldbTipNo("clear",
+			table.button(Icon.trash, Styles.clearTransi, () => {
+				for (let i = 0; i < this.memory.length; i++) {
+					this.memory[i] = 0;
+				}
+			}).size(40).right().pad(10)
+		);
 
 		table.table(null, table => {
 			table.slider(1, 32, 1, this.ldbSlideVal, true, v => {
@@ -66,10 +76,10 @@ require("override-lib/library").block(MemoryBlock, {
 			.tooltip("ranges: start-end-step\n\n" +
 				"filters: JS function(idx, mem[[])\n" +
 				"don't change or specify parms");
-		if (this.ldbSlideVal <= 3) f.colspan(2);
+		if (this.ldbSlideVal <= 3) f.colspan(4);
 		table.row();
 
-		const paneCell = table.pane(table => table.top()).height(height).pad(10).left().colspan(4);
+		const paneCell = table.pane(table => table.top()).height(height).pad(10).left().colspan(5);
 		const pane = paneCell.get();
 		pane.setOverscroll(false, false);
 		pane.setSmoothScrolling(false);
@@ -156,24 +166,21 @@ require("override-lib/library").block(MemoryBlock, {
 		};
 
 		this.ldbRangeArr = [];
-		if (str.indexOf("function") != -1 || (str.indexOf("=>") != -1)) {
+		if ((str.indexOf("function") != -1) || (str.indexOf("=>") != -1)) {
 			try {
-				const code = "function(idx, mem) {" +
-					"return " + str + ";" +
-				"}";
+				const code = "(idx, mem) => (" + str + ")();";
 				this.ldbFilterIn = eval(code);
-				this.ldbFilterIn(NaN, [])();
-				this.ldbFilterIn(null, [])();
-				this.ldbFilterIn(undefined, [])();
+				this.ldbFilterIn(NaN, []);
+				this.ldbFilterIn(null, []);
+				this.ldbFilterIn(undefined, []);
 
 				for (var i = 0; i < 512; i++) {
-					this.ldbFilterIn(i, [])();
+					this.ldbFilterIn(i, []);
 				}
 
 				return;
 			} catch(e) {
-				this.ldbFilterIn = () => () => false;
-				Log.err(e);
+				this.ldbFilterIn = () => false;
 			}
 		}
 		str.split(",").forEach(e => {
